@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 void changeHexStringToBin(char *plaintext_str, int *plaintext);
 void f(int *result, int *plaintextRight, int *subKey);
@@ -14,16 +15,26 @@ int main() {
 	反正DES只处理二进制数组，这里只是把十六进制数字（以字符串形式存储）转换成二进制数组
 	*/
 
-	/*先以字符串存储输入的十六进制数字*/
-	char plaintext_str[16] = "0123456789ABCDEF";
-	char key_str[16] = "fedcba9876543210";
+	/*以字符串存储输入的十六进制数字*/
+	char plaintext_str[17] = "0123456789ABCDEF\0";
+	char key_str[17] = "fedcba9876543210\0";
 	
 	/*输入*/
-	printf("输入和输出都是十六进制数字\n\n");
-	printf("请输入明文（64bit，即16位十六进制数字（小写））：");
+	printf("注意：输入和输出都是十六进制数字\n\n");
+	printf("请输入明文（64bit，即16位十六进制数字（小写））：\n");
 	//scanf("%s", plaintext_str);
-	printf("请输入密码（64bit，即16位十六进制数字（小写））：");
+	printf("请输入密钥（64bit，即16位十六进制数字（小写））：\n");
 	//scanf("%s", key_str);
+	printf("\n明文为：%s\n", plaintext_str);
+	printf("密钥为：%s\n", key_str);
+	printf("\n加密中\n\n");
+	/*理想封装情况（有时间再做）：
+	char *ciphertext = encrypt(plaintext_str, key_str);
+	printf("%s\n", ciphertext);
+
+	char *plaintextNew = decrypt(ciphertext, key_str);
+	printf("%s\n", plaintextNew);
+	*/
 
 	/*把字符串状态的十六进制数字转换成二进制数组*/
 	int plaintext[64];
@@ -43,9 +54,9 @@ int main() {
 		63,55,47,39,31,23,15,7
 	};
 
-	int plaintext_AfterIP[64];
+	int plaintextAfterIP[64];
 	for (int i = 0; i < 64;i++) {
-		plaintext_AfterIP[i] = plaintext[IP[i]-1];/*注意数组下标！！！*/
+		plaintextAfterIP[i] = plaintext[IP[i]-1];/*注意数组下标！！！*/
 	}
 
 	/*处理秘钥，产生每轮迭代所需要的共16个子秘钥，每个子秘钥48位*/
@@ -126,10 +137,10 @@ int main() {
 	int plaintextLeft[32];
 	int plaintextRight[32];
 	for (int i = 0;i < 32;i++) {
-		plaintextLeft[i] = plaintext_AfterIP[i];
+		plaintextLeft[i] = plaintextAfterIP[i];
 	}
 	for (int i = 32;i < 64;i++) {
-		plaintextRight[i - 32] = plaintext_AfterIP[i];
+		plaintextRight[i - 32] = plaintextAfterIP[i];
 	}
 	for (int i = 0;i < 16;i++) {//迭代开始
 		int plaintextLeftNew[32];
@@ -142,9 +153,9 @@ int main() {
 		f(temp, plaintextRight, subKey[i]);
 		XOR(plaintextRightNew, temp, plaintextLeft);
 
-		for (int i = 0;i < 32;i++) {
-			plaintextLeft[i] = plaintextLeftNew[i];
-			plaintextRight[i] = plaintextRightNew[i];
+		for (int j = 0;j < 32;j++) {
+			plaintextLeft[j] = plaintextLeftNew[j];
+			plaintextRight[j] = plaintextRightNew[j];
 		}
 	}
 
@@ -166,33 +177,85 @@ int main() {
 		33,1,41,9,49,17,57,25
 	};
 
-	int resultBin[64];
+	int ciphertextBin[64];
 	for (int bit = 0;bit < 64;bit++) {
-		resultBin[bit] = resultBeforeIP_1[IP_1[bit] - 1];
+		ciphertextBin[bit] = resultBeforeIP_1[IP_1[bit] - 1];
 	}
 
-	char resultStr[17];
+	char ciphertextStr[17];
 
-	changeBinToHexString(resultStr, resultBin);
+	changeBinToHexString(ciphertextStr, ciphertextBin);
 
-	printf("\n密文为：%s\n", resultStr);
+	printf("密文为：%s\n", ciphertextStr);
+
+	printf("\n解密中\n\n");
+
+	/*开始解密*/
+	/*对64比特密文进行初始置换*/
+	int ciphertextAfterIP[64];
+	for (int bit = 0;bit < 64;bit++) {
+		ciphertextAfterIP[bit] = ciphertextBin[IP[bit] - 1];
+	}
+
+	/*进行解密的十六轮迭代，方法和加密过程中的十六轮迭代相同，只是使用子密钥的顺序是从后往前的*/
+	int ciphertextLeft[32];
+	int ciphertextRight[32];
+	for (int bit = 0;bit < 32;bit++) {
+		ciphertextLeft[bit] = ciphertextAfterIP[bit];
+		ciphertextRight[bit] = ciphertextAfterIP[bit + 32];
+	}
+
+	for (int i = 0;i < 16;i++) {
+		int ciphertextLeftNew[32];
+		int ciphertextRightNew[32];
+
+		for (int bit = 0;bit < 32;bit++) {
+			ciphertextRightNew[bit] = ciphertextLeft[bit];
+		}
+
+		int temp[32];
+		f(temp, ciphertextLeft, subKey[15-i]);
+		XOR(ciphertextLeftNew, ciphertextRight, temp);
+
+		for (int j = 0;j < 32;j++) {
+			ciphertextLeft[j] = ciphertextLeftNew[j];
+			ciphertextRight[j] = ciphertextRightNew[j];
+		}
+	}
+
+	int plaintextNewBeforeIP_1[64];
+	for (int bit = 0;bit < 32;bit++) {
+		plaintextNewBeforeIP_1[bit] = ciphertextLeft[bit];
+		plaintextNewBeforeIP_1[bit + 32] = ciphertextRight[bit];
+	}
+
+	/*进行逆初始置换*/
+	int plaintextNewBin[64];
+	for (int bit = 0;bit < 64;bit++) {
+		plaintextNewBin[bit] = plaintextNewBeforeIP_1[IP_1[bit] - 1];
+	}
+
+	char *plaintextNewStr[17];
+	changeBinToHexString(plaintextNewStr, plaintextNewBin);
+	plaintextNewStr[16] = '\0';
+	printf("解密出的明文为：%s\n", plaintextNewStr);
 
 	return 0;
 }
 
-void changeHexStringToBin(char *plaintext_str, int *plaintext) {//将输入的字符串转化为比特数组
+void changeHexStringToBin(char *hexStr, int *arrayBin) {//将输入的字符串转化为比特数组
 	for (int i = 0; i < 16; i++) {
-		if (plaintext_str[i] >= 'A' && plaintext_str[i] <= 'F') {
-			plaintext_str[i] += 32;
+		if (hexStr[i] >= 'A' && hexStr[i] <= 'F') {
+			hexStr[i] += 32;
 		}
 
 		int valueDec = 0;
 
-		if ((plaintext_str[i] >= '0') && (plaintext_str[i] <= '9')) {
-			valueDec = plaintext_str[i] - '0';
+		if ((hexStr[i] >= '0') && (hexStr[i] <= '9')) {
+			valueDec = hexStr[i] - '0';
 		}
 		else {
-			valueDec = plaintext_str[i] - 'a' + 10;
+			valueDec = hexStr[i] - 'a' + 10;
 		}
 
 		int valueBin0 = 0;
@@ -208,10 +271,10 @@ void changeHexStringToBin(char *plaintext_str, int *plaintext) {//将输入的字符串
 		valueDec = valueDec / 2;
 		valueBin0 = valueDec % 2;
 		
-		plaintext[i * 4 + 0] = valueBin0;
-		plaintext[i * 4 + 1] = valueBin1;
-		plaintext[i * 4 + 2] = valueBin2;
-		plaintext[i * 4 + 3] = valueBin3;
+		arrayBin[i * 4 + 0] = valueBin0;
+		arrayBin[i * 4 + 1] = valueBin1;
+		arrayBin[i * 4 + 2] = valueBin2;
+		arrayBin[i * 4 + 3] = valueBin3;
 	}
 }
 
@@ -348,13 +411,13 @@ void XOR(int *result/*32bit*/, int *a/*32bit*/, int *b/*32bit*/) {
 	return;
 }
 
-void changeBinToHexString(char *hexStr, int *bin) {
+void changeBinToHexString(char *hexStr, int *arrayBin) {
 	for (int ch = 0;ch < 16;ch++) {
 		int tempSum = 0;
-		tempSum += bin[ch * 4 + 0] * 8;
-		tempSum += bin[ch * 4 + 1] * 4;
-		tempSum += bin[ch * 4 + 2] * 2;
-		tempSum += bin[ch * 4 + 3] * 1;
+		tempSum += arrayBin[ch * 4 + 0] * 8;
+		tempSum += arrayBin[ch * 4 + 1] * 4;
+		tempSum += arrayBin[ch * 4 + 2] * 2;
+		tempSum += arrayBin[ch * 4 + 3] * 1;
 		if (tempSum < 10) {
 			hexStr[ch] = '0' + tempSum;
 		}
